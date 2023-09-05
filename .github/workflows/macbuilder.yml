@@ -22,7 +22,14 @@ jobs:
         
     - name: Install dependencies
       run: yarn
-
+    - name: Install clang
+      run: |
+        sudo apt-get update
+        sudo apt-get install clang
+    - name: Set compilers
+      run: |  
+        echo "CC=clang" >> $GITHUB_ENV
+        echo "TARGET_CC=clang" >> $GITHUB_ENV
     - name: Build for M1  
       run: yarn tauri build --target aarch64-apple-darwin
 
