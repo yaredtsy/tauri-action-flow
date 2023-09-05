@@ -3,7 +3,7 @@ name: Build for M1 and Intel
 on: 
   push:
     branches:
-      - main
+      - release
   pull_request:
 
 jobs:
