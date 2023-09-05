@@ -31,7 +31,7 @@ jobs:
       run: |
         mkdir artifacts
   
-        mv src-tauri/target/aarch64-apple-darwin/release artifacts/apple-silicon/bundle
+        mv src-tauri/target/aarch64-apple-darwin/release/bundle artifacts/apple-silicon
     
     - uses: actions/upload-artifact@v2
       with:
