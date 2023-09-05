@@ -9,32 +9,33 @@ on:
 jobs:
 
   build:
-
+  
     runs-on: ubuntu-latest
-
+  
     steps:
+
     - uses: actions/checkout@v2
-    
+
+    - name: Install Xcode command line tools
+      run: |
+        sudo xcode-select --install --print-path
+      
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: aarch64-apple-darwin x86_64-apple-darwin
-        
+
     - name: Install dependencies
       run: yarn
+
+    - name: Set macOS SDK
+      run: |
+        export SDKROOT=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+        echo "SDKROOT=$SDKROOT" >> $GITHUB_ENV
+        echo "TARGET_CC=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/cc" >> $GITHUB_ENV
 
     - name: Build for Intel
       run: yarn tauri build --target x86_64-apple-darwin
 
-    - name: Build for M1  
+    - name: Build for M1 
       run: yarn tauri build --target aarch64-apple-darwin
-
-    - uses: actions/upload-artifact@v2
-      with:
-        name: build-Intel
-        path: src-tauri/target/x86_64-apple-darwin/release
-        
-    - uses: actions/upload-artifact@v2  
-      with:
-        name: build-M1
-        path: src-tauri/target/aarch64-apple-darwin/release
