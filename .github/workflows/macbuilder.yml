@@ -23,15 +23,15 @@ jobs:
 
     - name: Install dependencies  
       run: yarn
-      
+
     - name: Build for Apple Silicon
       run: yarn tauri build --target aarch64-apple-darwin
 
     - name: Create artifacts
       run: |
         mkdir artifacts
-        mv src-tauri/target/x86_64-apple-darwin/release artifacts/intel/bundle
-
+  
+        mv src-tauri/target/aarch64-apple-darwin/release artifacts/apple-silicon/bundle
     
     - uses: actions/upload-artifact@v2
       with:
