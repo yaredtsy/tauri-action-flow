@@ -1,40 +1,128 @@
-name: 'publish'
+name: CI_CD
+
 on:
   push:
+    tags:
+      - "*"
     branches:
       - release
 
+env:
+  app_name: cyberchef-app
+
 jobs:
-  publish-tauri:
-    permissions:
-      contents: write
+  build-depoly-files:
+    name: Build depoly files for ${{ github.ref_name }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: 'Install dependencies '
+        run: |
+          npm install
+
+      - name: 'Building'
+        run: |
+          npm run build
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: app-dist
+          path: ${{env.app_name}}-${{ github.ref_name }}.zip
+      - name: 'Publish build files achive to release'
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          file: ${{env.app_name}}-${{ github.ref_name }}.zip
+          tags: true
+          draft: false
+          overwrite: true
+
+  build-native-executable:
+    name: 'Build native executable'
+    needs: [build-depoly-files]
+    if: contains(github.ref, 'tags')
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest]
-
-    runs-on: ${{ matrix.platform }}
+        os: ['macos-latest']
+        include:
+          - os: 'macos-latest'
+            label: 'macos'
+            executable_extension: ''
+    runs-on: ${{matrix.os}}
     steps:
-      - uses: actions/checkout@v3
-      - name: setup node
-        uses: actions/setup-node@v3
+      - name: 'Checkout'
+        uses: actions/checkout@v2
         with:
-          node-version: 16
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-20.04'
+          submodules: false
+      - uses: actions/download-artifact@v2
+        with:
+          name: app-dist
+      - name: Extract app-dist
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
-      - name: install frontend dependencies
-        run: yarn install # change this to npm or pnpm depending on which one you use
-      - uses: tauri-apps/tauri-action@v0
+          rm -rf dist
+          unzip ${{env.app_name}}-${{ github.ref_name }}.zip -d dist
+        shell: bash
+      - name: Display structure of downloaded files
+        run: |
+          ls -l . dist
+          npx -y --package=tree-node-cli -- treee dist
+        shell: bash
+      - name: check toolchain version
+        run: |
+          node --version
+          npm --version
+          rustc --version
+          cargo --version
+      - name: 'Setup for macos'
+        if: matrix.os == 'macos-latest'
+        run: |
+          echo 'ok'
+      - name: Build Native binarys on macos
+        if: matrix.os == 'macos-latest'
+        run: |
+          echo "build native binarys..."
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
+          yarn
+          yarn tauri info
+          yarn tauri build -t x86_64-apple-darwin -c "{\"package\":{\"version\":\"${{ github.ref_name }}\"}}"
+          yarn tauri build -t aarch64-apple-darwin -c "{\"package\":{\"version\":\"${{ github.ref_name }}\"}}"
+          echo "build native binarys finished"
+      - name: Display structure of build files
+        continue-on-error: true
+        run: |
+          npx -y --package=tree-node-cli -- treee src-tauri/target/
+        shell: bash
+
+      - name: Prepare release files on ${{matrix.label}}
+        continue-on-error: true
+        if: matrix.os == 'macos-latest'
+        run: |
+          mv src-tauri/target/x86_64-apple-darwin/release/${{env.app_name}}${{matrix.executable_extension}} ${{env.app_name}}-${{matrix.label}}-${{ github.ref_name }}_x64${{matrix.executable_extension}}
+          mv src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/${{env.app_name}}_${{ github.ref_name }}_x64.dmg ${{env.app_name}}-${{matrix.label}}-${{ github.ref_name }}_x64.dmg
+          7z a -tzip ${{env.app_name}}-${{matrix.label}}-${{ github.ref_name }}_x64.app.zip ./src-tauri/target/x86_64-apple-darwin/release/bundle/macos/${{env.app_name}}.app
+          mv src-tauri/target/aarch64-apple-darwin/release/${{env.app_name}}${{matrix.executable_extension}} ${{env.app_name}}-${{matrix.label}}-${{ github.ref_name }}_aarch64${{matrix.executable_extension}}
+          mv src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/${{env.app_name}}_${{ github.ref_name }}_aarch64.dmg ${{env.app_name}}-${{matrix.label}}-${{ github.ref_name }}_aarch64.dmg
+          7z a -tzip ${{env.app_name}}-${{matrix.label}}-${{ github.ref_name }}_aarch64.app.zip ./src-tauri/target/aarch64-apple-darwin/release/bundle/macos/${{env.app_name}}.app
+        shell: bash
+
+      - name: Display structure of build files
+        run: |
+          ls -l .
+        shell: bash
+        
+      - name: 'Publish binary to release'
+        continue-on-error: true
+        uses: xresloader/upload-to-github-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version
-          releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: true
-          prerelease: false
+          file: ${{env.app_name}}-${{matrix.label}}-${{ github.ref_name }}*
+          tags: true
+          draft: false
+          overwrite: true
