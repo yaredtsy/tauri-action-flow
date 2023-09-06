@@ -9,7 +9,18 @@ on:
 jobs:
 
   build:
-  
+    env:
+      APP_VERSION: 1.0.0 
+      BUILD_TYPE: release
+
+    runs-on: macos-latest
+    
+    steps:
+    
+    - name: Print env
+      run: |
+        echo "App version is ${APP_VERSION}"
+        echo "Build type is ${BUILD_TYPE}"
     runs-on: macos-latest
 
     steps:
